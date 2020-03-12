@@ -32,35 +32,45 @@ abstract class AbstractServer {
         while (Users.size() < 2){
             Socket s = serverSocket.accept()
             Users.add(new ClientHandler(s))
+            addLog("Client ${Users.last().clientSocket.getInetAddress().toString()[1..-1]} connected")
+            println getLastLog()
+            new Thread(Users.last()).start()
         }
         Users[0].setPlayerEven(new Random().nextBoolean())
         Users[1].setPlayerEven(!Users[0].isPlayerEven())
         for(int i=0;i < Users.size();i++){
-            Users[i].run()
+            Users[i].setReady(true)
         }
 
     }
 
-    protected void processClient(client){
-        Users.add(client)
-        serverSocket.accept{
-            socket->
-                socket.withStreams {
-                    input,output->
-                        while (true) {
-                            def reader = input.newReader()
-                            def buffer = reader.readLine()
-                            println "server received: $buffer"
-                            output << "echo-response($buffer): " + buffer + "\n"
-                        }
-                }
+    protected def calculate(arg){
+        switch (arg.first){
+            case '+':
+                MagicNumber+=arg.second
+                break
+            case '*':
+                MagicNumber*=arg.second
+                break
+            case '-':
+                MagicNumber-=arg.second
+                break
+            case '/':
+                MagicNumber/=arg.second
+                break
+            case '%':
+                MagicNumber%=arg.second
+                break
+            case '^':
+                MagicNumber**=arg.second
+                break
+
         }
+        return MagicNumber
     }
 
-    //Todo
-    //Json в формате tuple<op,num>
-    protected def calculate(json){
-
+    protected boolean isWin(){
+        return MagicNumber == WIN_NUMBER
     }
 
     protected List<Boolean> HealthCheck(){
@@ -99,6 +109,10 @@ abstract class AbstractServer {
         return Logs.last()
     }
 
+    protected void changeTurn(){
+        Even_turn = !Even_turn
+    }
+
 //Генерация чисел
     abstract List<Tuple2<String,Integer>> GenerateInputs()
 
@@ -111,6 +125,10 @@ abstract class AbstractServer {
 
         ClientHandler(Socket clientSocket) {
             this.clientSocket = clientSocket
+        }
+
+        void setReady(boolean ready) {
+            Ready = ready
         }
 
         Boolean isPlayerEven() {
@@ -149,8 +167,7 @@ abstract class AbstractServer {
                     }
                     def JsonString = input.newObjectInputStream().readObject()
                     JsonSlurper Slurper = new JsonSlurper()
-                    def Response = Slurper.parseText(JsonString as String)
-                    println Response
+                    def Response = Slurper.parseText(JsonString)
                     handleResponse(Response)
                 }
             }
