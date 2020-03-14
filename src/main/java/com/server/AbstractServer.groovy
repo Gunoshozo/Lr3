@@ -3,8 +3,9 @@ package com.server
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
 import org.junit.jupiter.engine.discovery.predicates.IsInnerClass
+import com.UI.UIForm
 
-abstract class AbstractServer {
+abstract class AbstractServer extends Thread{
 
 
     protected final Integer WIN_NUMBER = 42
@@ -15,6 +16,16 @@ abstract class AbstractServer {
     protected List<ClientHandler> Users = new ArrayList<>()
     protected def serverSocket = new ServerSocket(6666)
     protected volatile List<String> Logs = new ArrayList<>()
+    protected UIForm form
+
+
+    void setUIForm(UIForm) {
+        this.form = UIForm
+    }
+
+    UIForm getForm() {
+        return form
+    }
 
     static AbstractServer init(boolean flag){
         if(flag){
@@ -26,14 +37,18 @@ abstract class AbstractServer {
     }
 
 
-    void start(){
+    void run(){
         InetAddress inetAddress = InetAddress.getLocalHost()
-        println inetAddress.getHostAddress()
+        form.setLogs("Server started at "+inetAddress.getHostAddress().toString())
         while (Users.size() < 2){
             Socket s = serverSocket.accept()
             Users.add(new ClientHandler(s))
+
             addLog("Client ${Users.last().clientSocket.getInetAddress().toString()[1..-1]} connected")
-            println getLastLog()
+            form.appendLogs(getLastLog())
+
+            form.updatePlayers(Users.size())
+
             new Thread(Users.last()).start()
         }
         Users[0].setPlayerEven(new Random().nextBoolean())
@@ -95,6 +110,11 @@ abstract class AbstractServer {
             Users.last().Stop()
             Users.remove(Users.size()-1)
         }
+        form.updatePlayers(Users.size())
+    }
+
+    protected void removeUser(obj){
+        Users.remove(obj)
     }
 
     protected void addLog(String s){
@@ -113,7 +133,7 @@ abstract class AbstractServer {
         Even_turn = !Even_turn
     }
 
-//Генерация чисел
+
     abstract List<Tuple2<String,Integer>> GenerateInputs()
 
     class ClientHandler implements Runnable {
@@ -150,6 +170,7 @@ abstract class AbstractServer {
             {
                 if (clientSocket.isClosed()){
                     Users.remove(this)
+                    form.updatePlayers(Users.size())
                     return
                 }
                 if (this.Ready)
@@ -171,13 +192,15 @@ abstract class AbstractServer {
                     handleResponse(Response)
                 }
             }
+            removeUser(this)
         }
 
         /*ToDo Написать обработчик ответа
           Придумать ответы */
         void handleResponse(Response) {
             switch(Response["type"]){
-                case "": break
+                case "move":
+                    print "Test"
             }
         }
 
@@ -186,9 +209,9 @@ abstract class AbstractServer {
                     even:EvenPlayer,
                     ops:Ops,
                     val:MagicNumber
-            ]
-            def Json = JsonOutput.toJson(data)
-            output.newObjectOutputStream().writeObject(Json)
+                    ]
+            def Json = JsonOutput.toJson(data) + '\n'
+            output << Json
         }
     }
 }
