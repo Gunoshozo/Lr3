@@ -268,8 +268,7 @@ abstract class AbstractServer extends Thread{
                 nextTurn(Json)
             }
         }
-
-        //todo
+        
         void endGame(){
             def body = [
                     "type": "End",
