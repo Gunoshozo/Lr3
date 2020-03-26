@@ -2,7 +2,6 @@ package com.server
 
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
-import org.junit.jupiter.engine.discovery.predicates.IsInnerClass
 import com.UI.UIForm
 
 abstract class AbstractServer extends Thread{
@@ -10,7 +9,7 @@ abstract class AbstractServer extends Thread{
 
     protected final Integer WIN_NUMBER = 42
 
-    protected boolean Even_turn = false
+    protected boolean EvenTurn = false
 
     protected volatile Integer MagicNumber = 1
     protected List<ClientHandler> Users = new ArrayList<>()
@@ -56,7 +55,6 @@ abstract class AbstractServer extends Thread{
         for(int i=0;i < Users.size();i++){
             Users[i].setReady(true)
         }
-
     }
 
     protected def calculate(arg){
@@ -97,8 +95,10 @@ abstract class AbstractServer extends Thread{
     }
 
     protected void sendAll(content){
-        for(def u:Users){
-            return
+
+        Users.each {
+            it->
+                it.outputStream << content
         }
 
     }
@@ -113,12 +113,22 @@ abstract class AbstractServer extends Thread{
         form.updatePlayers(Users.size())
     }
 
+    protected void StopAll1(){
+        for (int i = 0; i < Users.size(); i++){
+            Users[i].ShouldRun = false
+        }
+    }
+
     protected void removeUser(obj){
         Users.remove(obj)
     }
 
     protected void addLog(String s){
         Logs.add(s)
+    }
+
+    protected void updateLogs(){
+        form.setLogs(Logs)
     }
 
     List<String> getLogs() {
@@ -130,7 +140,7 @@ abstract class AbstractServer extends Thread{
     }
 
     protected void changeTurn(){
-        Even_turn = !Even_turn
+        EvenTurn = !EvenTurn
     }
 
 
@@ -142,6 +152,7 @@ abstract class AbstractServer extends Thread{
         private def Ops
         private boolean Ready = false
         private boolean ShouldRun
+        private def outputStream
 
         ClientHandler(Socket clientSocket) {
             this.clientSocket = clientSocket
@@ -179,6 +190,7 @@ abstract class AbstractServer extends Thread{
             }
             this.Ops = GenerateInputs()
             clientSocket.withStreams {input,output->
+                outputStream = output
                 sendInit(output)
                 while (ShouldRun){
                     if(clientSocket.isClosed()){
@@ -186,7 +198,7 @@ abstract class AbstractServer extends Thread{
                         StopAll()
                         return
                     }
-                    def JsonString = input.newObjectInputStream().readObject()
+                    def JsonString = input.newReader().readLine()
                     JsonSlurper Slurper = new JsonSlurper()
                     def Response = Slurper.parseText(JsonString)
                     handleResponse(Response)
@@ -200,7 +212,7 @@ abstract class AbstractServer extends Thread{
         void handleResponse(Response) {
             switch(Response["type"]){
                 case "move":
-                    print "Test"
+                    proccesOp(Response["oper"])
             }
         }
 
@@ -208,10 +220,73 @@ abstract class AbstractServer extends Thread{
             def data = [type:'Init',
                     even:EvenPlayer,
                     ops:Ops,
-                    val:MagicNumber
+                    val:MagicNumber,
+                    turn:false
                     ]
             def Json = JsonOutput.toJson(data) + '\n'
             output << Json
+        }
+
+        void proccesOp(int op){
+           if(this.EvenPlayer == EvenTurn){
+               switch (Ops[op].getFirst()){
+                   case '*':
+                       MagicNumber *= Ops[op].getSecond()
+                       break
+                   case '/':
+                       MagicNumber = (int)(MagicNumber/ Ops[op].getSecond())
+                       break
+                   case '-':
+                       MagicNumber -= Ops[op].getSecond()
+                       break
+                   case '+':
+                       MagicNumber += Ops[op].getSecond()
+                       break
+                   case '^':
+                       MagicNumber**=Ops[op].getSecond()
+                      break
+                   case '%':
+                       MagicNumber%= Ops[op].getSecond()
+                       break
+               }
+               form.UpdateNumber(MagicNumber)
+               def logStr = "User ${(Users[0] == this)?"№1":"№2"} changed magic number to ${MagicNumber}"
+               addLog(logStr)
+               form.appendLogs(getLastLog())
+           }
+            if (MagicNumber == WIN_NUMBER){
+                endGame()
+            }
+            else {
+                changeTurn()
+                def body = [
+                        "type": "NewTurn",
+                        "turn": EvenTurn,
+                        "val" : MagicNumber,
+                ]
+                def Json = JsonOutput.toJson(body) + '\n'
+                nextTurn(Json)
+            }
+        }
+
+        //todo
+        void endGame(){
+            def body = [
+                    "type": "End",
+                    "turn": EvenTurn,
+                    "val": MagicNumber
+            ]
+            def Json = JsonOutput.toJson(body) + '\n'
+            sendAll(Json)
+            ShouldRun = false
+            StopAll1()
+            def logStr = "User ${(Users[0] == this)?"№1":"№2"} Won"
+            addLog(logStr)
+            form.appendLogs(getLastLog())
+        }
+
+        void nextTurn(body){
+            sendAll(body)
         }
     }
 }

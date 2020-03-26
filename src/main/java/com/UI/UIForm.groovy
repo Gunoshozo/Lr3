@@ -13,7 +13,7 @@ public class UIForm extends JFrame {
     private JTextArea LogsTextArea;
     private JButton startButton;
     private JLabel PlayersLabel;
-    private JLabel MagiCNumberLabel;
+    private JLabel MagicNumberLabel;
     private JRadioButton DecimalRadio;
     private JRadioButton FullRadio;
     private AbstractServer server;
@@ -51,5 +51,9 @@ public class UIForm extends JFrame {
     }
     public void setLogs(String s){
         LogsTextArea.setText(s);
+    }
+
+    void UpdateNumber(Integer Magic){
+        MagicNumberLabel.setText("Magic Number:"+ Magic.toString());
     }
 }
